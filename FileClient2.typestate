@@ -1,0 +1,17 @@
+typestate FileClient2Protocol {
+
+  Init = {
+    boolean start(): <true: Started, false: end>
+  }
+
+  Started = {
+    void request(String): RequestingFile,
+    void close(): end
+  }
+
+  RequestingFile = {
+    boolean readByte(): <true: RequestingFile, false: Started>,
+    boolean readLine(): <true: RequestingFile, false: Started>
+  }
+
+}

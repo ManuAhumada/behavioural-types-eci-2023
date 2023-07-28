@@ -1,0 +1,32 @@
+typestate FileServerProtocol {
+
+  Init = {
+    boolean start(): <true: Started, false: end>
+  }
+
+  Started = {
+    boolean hasRequest(): <true: WaitingFilename, false: Started>,
+    void close(): end
+  }
+
+  WaitingFilename = {
+    boolean hasFilename(): <true: SearchingFilename, false: WaitingFilename>
+  }
+
+  SearchingFilename = {
+    boolean filenameExists(): <true: SendingFile, false: SendZeroByte>
+  }
+
+  SendingFile = {
+    boolean eof(): <true: SendZeroByte, false: SendByte>
+  }
+
+  SendByte = {
+    byte sendByte(): SendingFile
+  }
+
+  SendZeroByte = {
+    byte sendByte(): Init
+  }
+
+}
