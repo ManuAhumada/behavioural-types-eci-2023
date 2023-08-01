@@ -69,7 +69,6 @@ public class FileServer {
   }
 
   public void sendZeroByte() throws Exception {
-    System.out.println();
     out.write(0);
   }
 
@@ -80,8 +79,8 @@ public class FileServer {
 
   public static void main(String[] args) throws Exception {
     ServerSocket serverSocket = new ServerSocket(1234);
-    while (true) {
+    // while (true) {
       new FileServerThread(serverSocket.accept()).start();
-    }
+    // }
   }
 }
