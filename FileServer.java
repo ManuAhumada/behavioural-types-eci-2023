@@ -8,6 +8,8 @@ public class FileServer {
   protected OutputStream out;
   protected BufferedReader in;
   protected String lastFilename;
+  private FileReader fileReader;
+  private int lastByte;
 
   public boolean start(Socket s) {
     try {
@@ -23,16 +25,54 @@ public class FileServer {
 
   public boolean hasRequest() throws Exception {
     String command = in.readLine();
-    if (command != null && command.equals("REQUEST")) {
-      // TODO
-    }
-    return false;
+    return command != null && command.equals("REQUEST");
   }
 
-  // TODO
+  public boolean hasClose() throws Exception {
+    String command = in.readLine();
+    return command != null && command.equals("CLOSE");
+  }
+
+  public boolean hasFilename() throws Exception {
+    String filename = in.readLine();
+    if (filename == null) return false;
+
+    lastFilename = filename;
+    return true;
+  }
+
+  public boolean filenameExists() {
+    File f = new File(lastFilename);
+
+    try {
+      fileReader = new FileReader(f);
+      return true;
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
+  public boolean eof() throws Exception {
+    lastByte = fileReader.read();
+    if (lastByte != -1) return false;
+
+    fileReader.close();
+    return true;
+  }
+
+  public void sendByte() throws Exception {
+    System.out.print("Sending byte: " + lastByte);
+    out.write(lastByte);
+  }
+
+  public void sendZeroByte() throws Exception {
+    System.out.println();
+    out.write(0);
+  }
 
   public void close() throws Exception {
-    // TODO
+    in.close();
+    out.close();
   }
 
   public static void main(String[] args) throws Exception {

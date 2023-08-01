@@ -1,12 +1,12 @@
 typestate FileServerProtocol {
 
   Init = {
-    boolean start(): <true: Started, false: end>
+    boolean start(java.net.Socket): <true: Started, false: end>
   }
 
   Started = {
     boolean hasRequest(): <true: WaitingFilename, false: Started>,
-    void close(): end
+    boolean hasClose(): <true: Closing, false: Started>
   }
 
   WaitingFilename = {
@@ -22,11 +22,15 @@ typestate FileServerProtocol {
   }
 
   SendByte = {
-    byte sendByte(): SendingFile
+    void sendByte(): SendingFile
   }
 
   SendZeroByte = {
-    byte sendByte(): Init
+    void sendZeroByte(): Started
+  }
+
+  Closing = {
+    void close(): end
   }
 
 }
