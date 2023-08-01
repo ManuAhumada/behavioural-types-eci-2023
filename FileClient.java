@@ -32,7 +32,7 @@ public class FileClient {
   public boolean readByte() throws Exception {
     // TODO: add waiting state
     lastByte = in.read();
-    System.out.print(lastByte);
+    System.out.println("Received byte: " + (char) lastByte);
     return lastByte != 0;
   }
 
@@ -48,9 +48,12 @@ public class FileClient {
     FileClient client = new FileClient();
     if (client.start()) {
       System.out.println("File client started!");
+
       // TODO: do more requests
-      client.request("test.txt");
+      client.request("test.txt\n");
       while (client.readByte());
+      System.out.println("Request finished!");
+
       client.close();
     } else {
       System.out.println("Could not start client!");

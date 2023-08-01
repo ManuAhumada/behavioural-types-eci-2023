@@ -61,7 +61,7 @@ public class FileServer {
   }
 
   public void sendByte() throws Exception {
-    System.out.print("Sending byte: " + lastByte);
+    System.out.println("Sending byte: " + (char) lastByte);
     out.write(lastByte);
   }
 
