@@ -79,8 +79,6 @@ public class FileServer {
 
   public static void main(String[] args) throws Exception {
     ServerSocket serverSocket = new ServerSocket(1234);
-    // while (true) {
-      new FileServerThread(serverSocket.accept()).start();
-    // }
+    new FileServerThread(serverSocket.accept()).start();
   }
 }
