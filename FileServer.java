@@ -10,6 +10,7 @@ public class FileServer {
   protected String lastFilename;
   private FileReader fileReader;
   private int lastByte;
+  private String lastCommand;
 
   public boolean start(Socket s) {
     try {
@@ -24,13 +25,15 @@ public class FileServer {
   }
 
   public boolean hasRequest() throws Exception {
-    String command = in.readLine();
-    return command != null && command.equals("REQUEST");
+    return lastCommand != null && lastCommand.equals("REQUEST");
   }
 
   public boolean hasClose() throws Exception {
     String command = in.readLine();
-    return command != null && command.equals("CLOSE");
+    if (command == null) return false;
+
+    lastCommand = command;
+    return lastCommand != null && lastCommand.equals("CLOSE");
   }
 
   public boolean hasFilename() throws Exception {

@@ -23,14 +23,12 @@ public class FileClient {
 
   public void request(String filename) throws Exception {
     if (filename == null) throw new Exception("Filename cannot be null!");
-
     out.write("REQUEST\n".getBytes());
-    String filenameWithEndline = filename;
+    String filenameWithEndline = filename + '\n';
     out.write(filenameWithEndline.getBytes());
   }
 
   public boolean readByte() throws Exception {
-    // TODO: add waiting state
     lastByte = in.read();
     System.out.println("Received byte: " + (char) lastByte);
     return lastByte != 0;
@@ -48,9 +46,11 @@ public class FileClient {
     FileClient client = new FileClient();
     if (client.start()) {
       System.out.println("File client started!");
-
-      // TODO: do more requests
-      client.request("test.txt\n");
+      client.request("test1.txt");
+      while (client.readByte());
+      client.request("test2.txt");
+      while (client.readByte());
+      client.request("test3.txt");
       while (client.readByte());
       System.out.println("Request finished!");
 

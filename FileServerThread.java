@@ -12,7 +12,7 @@ public class FileServerThread extends Thread {
       FileServer server = new FileServer();
       if (server.start(socket)) {
         System.out.println("File server started!");
-        do {
+        while(!server.hasClose()) {
           if (!server.hasRequest()) continue;
           System.out.println("File server has request!");
 
@@ -29,7 +29,7 @@ public class FileServerThread extends Thread {
           }
 
           server.sendZeroByte();
-        } while(!server.hasClose());
+        }
 
         server.close();
         System.out.println("File server closed!");
