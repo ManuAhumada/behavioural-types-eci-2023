@@ -22,21 +22,35 @@ public class FileClient {
   }
 
   public void request(String filename) throws Exception {
+    if (filename == null) throw new Exception("Filename cannot be null!");
+
     out.write("REQUEST\n".getBytes());
-    // TODO
+    String filenameWithEndline = filename;
+    out.write(filenameWithEndline.getBytes());
   }
 
-  // TODO
+  public boolean readByte() throws Exception {
+    // TODO: add waiting state
+    lastByte = in.read();
+    System.out.print(lastByte);
+    return lastByte != 0;
+  }
 
   public void close() throws Exception {
-    // TODO
+    out.write("CLOSE\n".getBytes());
+
+    socket.close();
+    out.close();
+    in.close();
   }
 
   public static void main(String[] args) throws Exception {
     FileClient client = new FileClient();
     if (client.start()) {
       System.out.println("File client started!");
-      // TODO
+      // TODO: do more requests
+      client.request("test.txt");
+      while (client.readByte());
       client.close();
     } else {
       System.out.println("Could not start client!");
