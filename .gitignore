@@ -1,1 +1,2 @@
-*.class
+java/*.class
+rust/target
