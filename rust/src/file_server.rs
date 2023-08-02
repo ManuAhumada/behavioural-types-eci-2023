@@ -1,7 +1,7 @@
 use typestate::typestate;
 
 #[typestate]
-pub mod file_server {
+pub mod file_server_api {
     use std::{fs::File, io::Bytes, iter::Peekable, net::TcpStream};
 
     #[automaton]
@@ -82,7 +82,7 @@ pub mod file_server {
     }
 }
 
-use file_server::*;
+use file_server_api::*;
 use std::{
     fs::File,
     io::{Read, Write},
@@ -194,7 +194,7 @@ impl SendingFileState for FileServer<SendingFile> {
 impl SendByteState for FileServer<SendByte> {
     fn send_byte(mut self) -> FileServer<SendingFile> {
         let byte = self.state.bytes.next().unwrap().unwrap();
-        self.socket.write(&[byte]).unwrap();
+        self.socket.write_all(&[byte]).unwrap();
         FileServer::<SendingFile> {
             socket: self.socket,
             state: SendingFile {
@@ -206,7 +206,7 @@ impl SendByteState for FileServer<SendByte> {
 
 impl SendZeroByteState for FileServer<SendZeroByte> {
     fn send_zero_byte(mut self) -> FileServer<Started> {
-        self.socket.write(&[0]).unwrap();
+        self.socket.write_all(&[0]).unwrap();
         FileServer::<Started> {
             socket: self.socket,
             state: Started,
