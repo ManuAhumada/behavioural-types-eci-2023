@@ -1,7 +1,8 @@
-use file_server::file_server_api::*;
-use std::net::TcpListener;
-
+#[path = "../file_server.rs"]
 mod file_server;
+
+use crate::file_server::file_server_api::*;
+use std::net::TcpListener;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind("127.0.0.1:1234")?;

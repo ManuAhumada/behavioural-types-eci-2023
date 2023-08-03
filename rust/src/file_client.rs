@@ -1,98 +1,49 @@
 use typestate::typestate;
 
 #[typestate]
-pub mod file_server_api {
+pub mod file_client_api {
     use std::{
-        fs::File,
-        io::{BufReader, BufWriter, Bytes},
-        iter::Peekable,
+        io::{BufReader, BufWriter},
         net::TcpStream,
     };
 
     #[automaton]
-    pub struct FileServer {
+    pub struct FileClient {
         pub reader: BufReader<TcpStream>,
         pub writer: BufWriter<TcpStream>,
     }
 
     #[state]
     pub struct Started;
-    #[state]
-    pub struct WaitingFilename;
-    #[state]
-    pub struct SearchingFilename {
-        pub filename: String,
-    }
-    #[state]
-    pub struct SendingFile {
-        pub bytes: Peekable<Bytes<File>>,
-    }
-    #[state]
-    pub struct SendByte {
-        pub bytes: Peekable<Bytes<File>>,
-    }
-    #[state]
-    pub struct SendZeroByte;
-    #[state]
-    pub struct Closing;
-
     pub trait Started {
-        fn start(socket: TcpStream) -> Started;
-        fn has_command(self) -> HasCommandResult;
-    }
-
-    pub trait WaitingFilename {
-        fn has_filename(self) -> WaitingFilenameResult;
-    }
-
-    pub trait SearchingFilename {
-        fn filename_exists(self) -> SearchingFilenameResult;
-    }
-
-    pub trait SendingFile {
-        fn eof(self) -> SendingFileResult;
-    }
-
-    pub trait SendByte {
-        fn send_byte(self) -> SendingFile;
-    }
-
-    pub trait SendZeroByte {
-        fn send_zero_byte(self) -> Started;
-    }
-
-    pub trait Closing {
+        fn start() -> Started;
+        fn request(self, filename: String) -> RequestingFile;
         fn close(self);
     }
 
-    pub enum HasCommandResult {
-        WaitingFilename,
-        Closing,
+    #[state]
+    pub struct RequestingFile;
+
+    pub trait RequestingFile {
+        fn read_byte(self) -> RequestingFileResult;
+    }
+
+    pub enum RequestingFileResult {
+        RequestingFile,
         Started,
-    }
-    pub enum WaitingFilenameResult {
-        SearchingFilename,
-        WaitingFilename,
-    }
-    pub enum SearchingFilenameResult {
-        SendingFile,
-        SendZeroByte,
-    }
-    pub enum SendingFileResult {
-        SendZeroByte,
-        SendByte,
     }
 }
 
-use file_server_api::*;
+use file_client_api::*;
 use std::{
-    fs::File,
-    io::{BufRead, BufReader, BufWriter, Read, Write},
-    net::TcpStream,
+    io::{BufReader, BufWriter, Read, Write},
+    net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream},
 };
 
-impl StartedState for FileServer<Started> {
-    fn start(socket: TcpStream) -> Self {
+impl StartedState for FileClient<Started> {
+    fn start() -> Self {
+        let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1234);
+        let socket = TcpStream::connect(address).unwrap();
         Self {
             reader: BufReader::new(socket.try_clone().unwrap()),
             writer: BufWriter::new(socket),
@@ -100,26 +51,39 @@ impl StartedState for FileServer<Started> {
         }
     }
 
-    fn has_command(mut self) -> HasCommandResult {
-        let mut command = String::new();
-        self.reader.read_line(&mut command).unwrap();
+    fn request(mut self, filename: String) -> FileClient<RequestingFile> {
+        self.writer.write_all(b"REQUEST\n").unwrap();
+        self.writer.write_all((filename + "\n").as_bytes()).unwrap();
+        self.writer.flush().unwrap();
+        FileClient::<RequestingFile> {
+            reader: self.reader,
+            writer: self.writer,
+            state: RequestingFile,
+        }
+    }
 
-        match command.as_str() {
-            "REQUEST\n" => HasCommandResult::WaitingFilename(FileServer::<WaitingFilename> {
+    fn close(mut self) {
+        self.writer.write_all(b"CLOSE\n").unwrap();
+    }
+}
+
+impl RequestingFileState for FileClient<RequestingFile> {
+    fn read_byte(mut self) -> RequestingFileResult {
+        let mut byte = [0; 1];
+        self.reader.read_exact(&mut byte).unwrap();
+        println!("Received byte: {}", char::from(byte[0]));
+        if byte[0] != 0 {
+            RequestingFileResult::RequestingFile(FileClient::<RequestingFile> {
                 reader: self.reader,
                 writer: self.writer,
-                state: WaitingFilename,
-            }),
-            "CLOSE\n" => HasCommandResult::Closing(FileServer::<Closing> {
-                reader: self.reader,
-                writer: self.writer,
-                state: Closing,
-            }),
-            _ => HasCommandResult::Started(FileServer::<Started> {
+                state: RequestingFile,
+            })
+        } else {
+            RequestingFileResult::Started(FileClient::<Started> {
                 reader: self.reader,
                 writer: self.writer,
                 state: Started,
-            }),
+            })
         }
     }
 }
