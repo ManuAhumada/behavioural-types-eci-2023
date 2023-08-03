@@ -17,49 +17,54 @@ pub mod file_server_api {
 
     #[state]
     pub struct Started;
-    #[state]
-    pub struct WaitingFilename;
-    #[state]
-    pub struct SearchingFilename {
-        pub filename: String,
-    }
-    #[state]
-    pub struct SendingFile {
-        pub bytes: Peekable<Bytes<File>>,
-    }
-    #[state]
-    pub struct SendByte {
-        pub bytes: Peekable<Bytes<File>>,
-    }
-    #[state]
-    pub struct SendZeroByte;
-    #[state]
-    pub struct Closing;
 
     pub trait Started {
         fn start(socket: TcpStream) -> Started;
         fn has_command(self) -> HasCommandResult;
     }
 
+    #[state]
+    pub struct WaitingFilename;
+
     pub trait WaitingFilename {
         fn has_filename(self) -> WaitingFilenameResult;
     }
 
+    #[state]
+    pub struct SearchingFilename {
+        pub filename: String,
+    }
+
     pub trait SearchingFilename {
         fn filename_exists(self) -> SearchingFilenameResult;
+    }
+    #[state]
+    pub struct SendingFile {
+        pub bytes: Peekable<Bytes<File>>,
     }
 
     pub trait SendingFile {
         fn eof(self) -> SendingFileResult;
     }
 
+    #[state]
+    pub struct SendByte {
+        pub bytes: Peekable<Bytes<File>>,
+    }
+
     pub trait SendByte {
         fn send_byte(self) -> SendingFile;
     }
 
+    #[state]
+    pub struct SendZeroByte;
+
     pub trait SendZeroByte {
         fn send_zero_byte(self) -> Started;
     }
+
+    #[state]
+    pub struct Closing;
 
     pub trait Closing {
         fn close(self);
