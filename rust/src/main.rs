@@ -5,7 +5,13 @@ mod file_server;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind("127.0.0.1:1234")?;
-    let (socket, _) = listener.accept()?;
+    loop {
+        run_server(&listener);
+    }
+}
+
+fn run_server(listener: &TcpListener) {
+    let (socket, _) = listener.accept().unwrap();
     let mut file_server = FileServer::<Started>::start(socket);
     println!("File server started!");
     let closing_file_server: FileServer<Closing> = loop {
@@ -39,7 +45,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     closing_file_server.close();
     println!("File server closed!");
-    Ok(())
 }
 
 fn wait_for_filename(
