@@ -2,11 +2,17 @@ use typestate::typestate;
 
 #[typestate]
 pub mod file_server_api {
-    use std::{fs::File, io::Bytes, iter::Peekable, net::TcpStream};
+    use std::{
+        fs::File,
+        io::{BufReader, BufWriter, Bytes},
+        iter::Peekable,
+        net::TcpStream,
+    };
 
     #[automaton]
     pub struct FileServer {
-        pub socket: TcpStream,
+        pub reader: BufReader<TcpStream>,
+        pub writer: BufWriter<TcpStream>,
     }
 
     #[state]
@@ -32,8 +38,7 @@ pub mod file_server_api {
 
     pub trait Started {
         fn start(socket: TcpStream) -> Started;
-        fn has_request(self) -> HasRequestResult;
-        fn has_close(self) -> HasCloseResult;
+        fn has_command(self) -> HasCommandResult;
     }
 
     pub trait WaitingFilename {
@@ -60,11 +65,8 @@ pub mod file_server_api {
         fn close(self);
     }
 
-    pub enum HasRequestResult {
+    pub enum HasCommandResult {
         WaitingFilename,
-        Started,
-    }
-    pub enum HasCloseResult {
         Closing,
         Started,
     }
@@ -85,71 +87,60 @@ pub mod file_server_api {
 use file_server_api::*;
 use std::{
     fs::File,
-    io::{Read, Write},
-    net::{Shutdown::Both, TcpStream},
-    str::from_utf8,
+    io::{BufRead, BufReader, BufWriter, Read, Write},
+    net::TcpStream,
 };
-
-const MAX_BUFFER_SIZE: usize = 1024;
 
 impl StartedState for FileServer<Started> {
     fn start(socket: TcpStream) -> Self {
         Self {
-            socket,
+            reader: BufReader::new(socket.try_clone().unwrap()),
+            writer: BufWriter::new(socket),
             state: Started,
         }
     }
 
-    fn has_request(mut self) -> HasRequestResult {
-        let mut buffer = [0; MAX_BUFFER_SIZE];
-        let bytes_read = self.socket.read(&mut buffer).unwrap();
+    fn has_command(mut self) -> HasCommandResult {
+        let mut command = String::new();
+        self.reader.read_line(&mut command).unwrap();
 
-        if bytes_read == 0 || from_utf8(&buffer).unwrap() != "REQUEST" {
-            HasRequestResult::Started(FileServer::<Started> {
-                socket: self.socket,
-                state: Started,
-            })
-        } else {
-            HasRequestResult::WaitingFilename(FileServer::<WaitingFilename> {
-                socket: self.socket,
+        match command.as_str() {
+            "REQUEST\n" => HasCommandResult::WaitingFilename(FileServer::<WaitingFilename> {
+                reader: self.reader,
+                writer: self.writer,
                 state: WaitingFilename,
-            })
-        }
-    }
-
-    fn has_close(self) -> HasCloseResult {
-        let mut buffer = [0; MAX_BUFFER_SIZE];
-        let bytes_read = self.socket.peek(&mut buffer).unwrap();
-
-        if bytes_read != 0 && from_utf8(&buffer).unwrap() != "CLOSE" {
-            HasCloseResult::Closing(FileServer::<Closing> {
-                socket: self.socket,
+            }),
+            "CLOSE\n" => HasCommandResult::Closing(FileServer::<Closing> {
+                reader: self.reader,
+                writer: self.writer,
                 state: Closing,
-            })
-        } else {
-            HasCloseResult::Started(FileServer::<Started> {
-                socket: self.socket,
+            }),
+            _ => HasCommandResult::Started(FileServer::<Started> {
+                reader: self.reader,
+                writer: self.writer,
                 state: Started,
-            })
+            }),
         }
     }
 }
 
 impl WaitingFilenameState for FileServer<WaitingFilename> {
     fn has_filename(mut self) -> WaitingFilenameResult {
-        let mut buffer = [0; MAX_BUFFER_SIZE];
-        let bytes_read = self.socket.read(&mut buffer).unwrap();
+        let mut filename = String::new();
+        let bytes_read = self.reader.read_line(&mut filename).unwrap();
 
         if bytes_read == 0 {
             WaitingFilenameResult::WaitingFilename(FileServer::<WaitingFilename> {
-                socket: self.socket,
+                reader: self.reader,
+                writer: self.writer,
                 state: WaitingFilename,
             })
         } else {
             WaitingFilenameResult::SearchingFilename(FileServer::<SearchingFilename> {
-                socket: self.socket,
+                reader: self.reader,
+                writer: self.writer,
                 state: SearchingFilename {
-                    filename: from_utf8(&buffer).unwrap().to_owned(),
+                    filename: filename.trim_end().to_owned(),
                 },
             })
         }
@@ -160,13 +151,15 @@ impl SearchingFilenameState for FileServer<SearchingFilename> {
     fn filename_exists(self) -> SearchingFilenameResult {
         match File::open(&self.state.filename) {
             Ok(file) => SearchingFilenameResult::SendingFile(FileServer::<SendingFile> {
-                socket: self.socket,
+                reader: self.reader,
+                writer: self.writer,
                 state: SendingFile {
                     bytes: file.bytes().peekable(),
                 },
             }),
             _ => SearchingFilenameResult::SendZeroByte(FileServer::<SendZeroByte> {
-                socket: self.socket,
+                reader: self.reader,
+                writer: self.writer,
                 state: SendZeroByte,
             }),
         }
@@ -177,12 +170,14 @@ impl SendingFileState for FileServer<SendingFile> {
     fn eof(mut self) -> SendingFileResult {
         if self.state.bytes.peek().is_none() {
             SendingFileResult::SendZeroByte(FileServer::<SendZeroByte> {
-                socket: self.socket,
+                reader: self.reader,
+                writer: self.writer,
                 state: SendZeroByte,
             })
         } else {
             SendingFileResult::SendByte(FileServer::<SendByte> {
-                socket: self.socket,
+                reader: self.reader,
+                writer: self.writer,
                 state: SendByte {
                     bytes: self.state.bytes,
                 },
@@ -194,9 +189,11 @@ impl SendingFileState for FileServer<SendingFile> {
 impl SendByteState for FileServer<SendByte> {
     fn send_byte(mut self) -> FileServer<SendingFile> {
         let byte = self.state.bytes.next().unwrap().unwrap();
-        self.socket.write_all(&[byte]).unwrap();
+        println!("Sending byte: {}", char::from(byte));
+        self.writer.write_all(&[byte]).unwrap();
         FileServer::<SendingFile> {
-            socket: self.socket,
+            reader: self.reader,
+            writer: self.writer,
             state: SendingFile {
                 bytes: self.state.bytes,
             },
@@ -206,16 +203,16 @@ impl SendByteState for FileServer<SendByte> {
 
 impl SendZeroByteState for FileServer<SendZeroByte> {
     fn send_zero_byte(mut self) -> FileServer<Started> {
-        self.socket.write_all(&[0]).unwrap();
+        self.writer.write_all(&[0]).unwrap();
+        self.writer.flush().unwrap();
         FileServer::<Started> {
-            socket: self.socket,
+            reader: self.reader,
+            writer: self.writer,
             state: Started,
         }
     }
 }
 
 impl ClosingState for FileServer<Closing> {
-    fn close(self) {
-        self.socket.shutdown(Both).unwrap();
-    }
+    fn close(self) {}
 }
