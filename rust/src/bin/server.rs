@@ -15,36 +15,32 @@ fn run_server(listener: &TcpListener) {
     let (socket, _) = listener.accept().unwrap();
     let mut file_server = FileServer::<Started>::start(socket);
     println!("File server started!");
-    let closing_file_server: FileServer<Closing> = loop {
+    let file_server: FileServer<Closing> = loop {
         file_server = match file_server.has_command() {
             HasCommandResult::WaitingFilename(file_server) => {
                 println!("File server has request!");
-                let file_server_searching = wait_for_filename(file_server);
-                println!(
-                    "File server has filename! {}",
-                    file_server_searching.state.filename
-                );
-                let fs_send_zero_byte: FileServer<SendZeroByte> =
-                    match file_server_searching.filename_exists() {
-                        SearchingFilenameResult::SendingFile(fs) => {
-                            let fs = send_all_bytes(fs);
-                            println!("File sent!");
-                            fs
-                        }
-                        SearchingFilenameResult::SendZeroByte(fs) => {
-                            println!("File does not exist!");
-                            fs
-                        }
-                    };
-                fs_send_zero_byte.send_zero_byte()
+                let file_server = wait_for_filename(file_server);
+                println!("File server has filename! {}", file_server.state.filename);
+                let file_server: FileServer<SendZeroByte> = match file_server.filename_exists() {
+                    SearchingFilenameResult::SendingFile(file_server) => {
+                        let file_server = send_all_bytes(file_server);
+                        println!("File sent!");
+                        file_server
+                    }
+                    SearchingFilenameResult::SendZeroByte(file_server) => {
+                        println!("File does not exist!");
+                        file_server
+                    }
+                };
+                file_server.send_zero_byte()
             }
             HasCommandResult::Closing(file_server) => {
                 break file_server;
             }
-            HasCommandResult::Started(fs) => fs,
+            HasCommandResult::Started(file_server) => file_server,
         };
     };
-    closing_file_server.close();
+    file_server.close();
     println!("File server closed!");
 }
 
@@ -61,11 +57,11 @@ fn wait_for_filename(
     }
 }
 
-fn send_all_bytes(mut fs: FileServer<SendingFile>) -> FileServer<SendZeroByte> {
+fn send_all_bytes(mut file_server: FileServer<SendingFile>) -> FileServer<SendZeroByte> {
     loop {
-        fs = match fs.eof() {
-            SendingFileResult::SendByte(fs) => fs.send_byte(),
-            SendingFileResult::SendZeroByte(fs) => break fs,
+        file_server = match file_server.eof() {
+            SendingFileResult::SendByte(file_server) => file_server.send_byte(),
+            SendingFileResult::SendZeroByte(file_server) => break file_server,
         }
     }
 }
